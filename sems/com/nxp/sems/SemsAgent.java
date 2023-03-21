@@ -1,5 +1,5 @@
 /*
- * Copyright 2019-2022 NXP
+ * Copyright 2019-2023 NXP
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,6 @@
 package com.nxp.sems;
 
 import android.content.Context;
-import android.content.pm.FeatureInfo;
-import android.content.pm.PackageManager;
 import android.util.Log;
 import java.io.BufferedReader;
 import java.io.FileInputStream;
@@ -45,7 +43,7 @@ public final class SemsAgent {
   public String SEMS_HASH_TYPE_SHA1   = "SHA1";
   public String SEMS_HASH_TYPE_SHA256 = "SHA256";
   public static final short major = 1;
-  public static final short minor = 4;
+  public static final short minor = 6;
 
   private static final byte DEFAULT_TERMINAL_ID = 1;
   private static SemsAgent sInstance;
@@ -55,7 +53,6 @@ public final class SemsAgent {
   private SemsExecutor mExecutor = null;
   public static Object semsObj = new Object();
   public static boolean flagSemsObj = false;
-  private static final int KEYSTORE_VERSION_2_0 = 200;
   /**
    * Returns SemsAgent singleton object
    * <br/>
@@ -85,17 +82,54 @@ public final class SemsAgent {
   /**
    * Perform secure SEMS script execution
    * <br/>
-   * inputScript : The Input secure script buffer in string format,
+   * inputScript : The Input secure script buffer in string format
    * fileName : Output response storage file name
    * callback : Callback to be invoked once SEMS execution is done
    * @param void
    *
-   * @return {@code status} 0 in SUCCESS, otherwise 1 in failure.
+   * @return {@code status} 0 in SUCCESS, otherwise 1 in failure
    */
   public int SemsExecuteScript(String inputScriptBuffer, String outputFilename,
                                ISemsCallback callback) throws SemsException {
     return SemsExecuteScript(inputScriptBuffer, outputFilename, callback,
-                             DEFAULT_TERMINAL_ID);
+                             DEFAULT_TERMINAL_ID, null);
+  }
+
+  /**
+   * Perform secure SEMS script execution
+   * <br/>
+   * inputScript : The Input secure script buffer in string format
+   * fileName : Output response storage file name
+   * callback : Callback to be invoked once SEMS execution is done
+   * semsAuthCallback : Callback to be invoked for IAR User Auth
+   * @param void
+   *
+   * @return {@code status} 0 in SUCCESS, otherwise 1 in failure
+   */
+  public int SemsExecuteScript(String inputScriptBuffer, String outputFilename,
+                               ISemsCallback callback, ISemsAuthCallback semsAuthCallback)
+      throws SemsException {
+    return SemsExecuteScript(inputScriptBuffer, outputFilename, callback,
+                             DEFAULT_TERMINAL_ID, semsAuthCallback);
+  }
+
+  /**
+   * Perform secure SEMS script execution
+   * <br/>
+   * inputScript : The Input secure script buffer in string format
+   * fileName : Output response storage file name
+   * callback : Callback to be invoked once SEMS execution is done
+   * semsAuthCallback : Callback to be invoked for IAR User Auth
+   * terminalId : OMAPI terminal to be used for SEMS update
+   * @param void
+   *
+   * @return {@code status} 0 in SUCCESS, otherwise 1 in failure
+   */
+  public int SemsExecuteScript(String inputScriptBuffer, String outputFilename,
+                               ISemsCallback callback, byte omapiTerminalId)
+      throws SemsException {
+    return SemsExecuteScript(inputScriptBuffer, outputFilename, callback,
+                             omapiTerminalId, null);
   }
 
   /**
@@ -105,13 +139,14 @@ public final class SemsAgent {
    * fileName : Output response storage file name
    * callback : Callback to be invoked once SEMS execution is done
    * omapiTerminalId : OMAPI Terminal ID of secure element
+   * semsAuthCallback : Callback to be invoked for IAR User Auth
    * @param void
    *
    * @return {@code status} 0 in SUCCESS, otherwise 1 in failure.
    */
   public int SemsExecuteScript(String inputScriptBuffer, String outputFilename,
-                               ISemsCallback callback, byte omapiTerminalId)
-      throws SemsException {
+    ISemsCallback callback, byte omapiTerminalId,
+    ISemsAuthCallback semsAuthCallback) throws SemsException {
     sTerminalID = omapiTerminalId;
     if (inputScriptBuffer == null) {
       throw new SemsException("Invalid/Null Input script");
@@ -120,9 +155,46 @@ public final class SemsAgent {
         SemsApduChannelFactory.OMAPI_CHANNEL, sContext, sTerminalID);
     mExecutor = SemsExecutor.getInstance(mSemsApduChannel, sContext);
     SemsStatus status =
-        mExecutor.executeScript(inputScriptBuffer, outputFilename, callback);
+        mExecutor.executeScript(inputScriptBuffer, outputFilename, callback, semsAuthCallback);
     if (status == SemsStatus.SEMS_STATUS_SUCCESS) {
       return SEMS_STATUS_SUCCESS;
+    } else {
+      return SEMS_STATUS_FAILED;
+    }
+  }
+
+  /**
+   * Perform secure SEMS script execution synchronously
+   * <br/>
+   * inputScript : The Input secure script buffer in string format,
+   * fileName : Output response storage file name
+   * semsAuthCallback : Callback to be invoked for IAR User Auth
+   * @param void
+   *
+   * @return {@code status} 0 in SUCCESS, otherwise
+   *                        1 in SEMS status Failed
+   *                        2 in SEMS status Busy
+   *                        3 in SEMS status denied
+   *                     0x0f in Unknown error.
+   */
+  public int SemsExecuteScript(String inputScriptBuffer, String outputFilename,
+      ISemsAuthCallback semsAuthCallback) throws SemsException {
+    SemsExecutionStatus.mSemsExecutionStatus = SEMS_STATUS_FAILED;
+    int status = SemsExecuteScript(inputScriptBuffer, outputFilename,
+                    new SemsExecutionStatus() ,DEFAULT_TERMINAL_ID, semsAuthCallback);
+    if (status == SEMS_STATUS_SUCCESS) {
+      synchronized (semsObj) {
+        while (!flagSemsObj) {
+          try {
+            semsObj.wait();
+          } catch (InterruptedException e) {
+            Log.e(TAG, "Wait on SEMS script Execution failed");
+          }
+        }
+        flagSemsObj = false;
+      }
+
+      return SemsExecutionStatus.mSemsExecutionStatus;
     } else {
       return SEMS_STATUS_FAILED;
     }
@@ -251,45 +323,5 @@ public final class SemsAgent {
     } catch (Exception e) {
       throw new SemsException("Unable to set Hash type");
     }
-  }
-
-     /**
-     * Returns 0 if not implemented. Otherwise returns the feature version.
-     * <br/>
-     * @param Context appContext : application context
-     *
-     * @return int : returns 0 if feature not found, else returns feature version.
-     */
-    private static int getKeystoreFeatureVersion(Context appContext) {
-        PackageManager pm = appContext.getPackageManager();
-        int featureVersionFromPm = 0;
-        if (pm.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)) {
-            FeatureInfo info = null;
-            FeatureInfo[] infos = pm.getSystemAvailableFeatures();
-            for (int n = 0; n < infos.length; n++) {
-                FeatureInfo i = infos[n];
-                if (i.name.equals(PackageManager.FEATURE_STRONGBOX_KEYSTORE)) {
-                    info = i;
-                    break;
-                }
-            }
-            if (info != null) {
-                featureVersionFromPm = info.version;
-            }
-        }
-        return featureVersionFromPm;
-    }
-
-  public boolean isAuthRequired() {
-    int keyMintFeatureVersion = getKeystoreFeatureVersion(sContext);
-    if (keyMintFeatureVersion < KEYSTORE_VERSION_2_0) {
-      Log.e(TAG, "KeyMintFeature(" +  keyMintFeatureVersion +
-                  ") version is less than 200. Exiting...");
-      return false;
-    }
-    if (mSemsApduChannel != null) {
-      return mSemsApduChannel.isAuthRequired();
-    }
-    return true;
   }
 }
