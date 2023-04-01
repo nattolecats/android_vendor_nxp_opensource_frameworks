@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 NXP
+ * Copyright 2023 NXP
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,25 +14,15 @@
  * limitations under the License.
  */
 
-package com.nxp.sems.channel;
+package com.nxp.sems;
 
-public class SemsRawApduChannel implements ISemsApduChannel {
-
-  @Override
-  public byte[] open(byte[] aid) {
-    // TODO Auto-generated method stub
-    return new byte[2];
-  }
-
-  @Override
-  public byte[] transmit(byte[] buffer) {
-    // TODO Auto-generated method stub
-    return null;
-  }
-
-  @Override
-  public void close() {
-    // TODO Auto-generated method stub
-    return;
-  }
+public interface ISemsAuthCallback {
+    /**
+     * Invoked before SEMS update, for user authentication(IAR).
+     * <br/>
+     *
+     * @return boolean TRUE if User Authetication success.
+     *         else returns FALSE.
+     */
+    boolean doAuthforSems();
 }
