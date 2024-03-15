@@ -1,5 +1,5 @@
  /*
-  * Copyright 2015-2021 NXP
+  * Copyright 2015-2022 NXP
   *
   * Licensed under the Apache License, Version 2.0 (the "License");
   * you may not use this file except in compliance with the License.
@@ -33,8 +33,6 @@ interface INxpNfcAdapter
     void changeDiscoveryTech(IBinder binder, int pollTech, int listenTech);
     void startPoll(String pkg);
     byte[]  getFWVersion();
-    byte[] readerPassThruMode(byte status, byte modulationTyp);
-    byte[] transceiveAppData(in byte[] data);
     int setConfig(String configs , String pkg);
     int selectUicc(int uiccSlot);
     int getMaxAidRoutingTableSize();
@@ -48,4 +46,10 @@ interface INxpNfcAdapter
     byte[] doReadT4tData(in byte[] fileId);
     int nfcSelfTest(int type);
     int configureSecureReader(boolean on, String readerType);
+    int startExtendedFieldDetectMode(int detectionTimeout);
+    int stopExtendedFieldDetectMode();
+    int startCardEmulation();
+    int startRssiMode(int rssiNtfTimeIntervalInMillisec);
+    int stopRssiMode();
+    boolean isRssiEnabled();
 }
