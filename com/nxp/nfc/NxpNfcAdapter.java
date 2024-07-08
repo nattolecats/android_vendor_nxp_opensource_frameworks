@@ -21,7 +21,6 @@ package com.nxp.nfc;
 
 import java.util.HashMap;
 import java.util.Map;
-import android.nfc.INfcAdapter;
 import android.nfc.NfcAdapter;
 import android.nfc.INfcAdapterExtras;
 import android.os.IBinder;
@@ -58,7 +57,6 @@ public final class NxpNfcAdapter {
     // Final after first constructor, except for
     // attemptDeadServiceRecovery() when NFC crashes - we accept a best effort
     // recovery
-    private static INfcAdapter sService;
     private static INxpNfcAdapter sNxpService;
 
     private NxpNfcAdapter() {
@@ -92,16 +90,6 @@ public final class NxpNfcAdapter {
             sNfcAdapters.put(adapter, nxpAdapter);
         }
         return nxpAdapter;
-    }
-
-    /** get handle to NFC service interface */
-    private static INfcAdapter getServiceInterface() {
-        /* get a handle to NFC service */
-        IBinder b = ServiceManager.getService("nfc");
-        if (b == null) {
-            return null;
-        }
-        return INfcAdapter.Stub.asInterface(b);
     }
 
     /**

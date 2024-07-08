@@ -18,7 +18,6 @@
 package com.nxp.nfc;
 
 import android.annotation.SystemApi;
-import android.nfc.INfcAdapter;
 import android.nfc.NfcAdapter;
 import android.os.IBinder;
 import android.os.RemoteException;
@@ -41,7 +40,6 @@ public final class NxpWlcAdapter {
   // Final after first constructor, except for
   // attemptDeadServiceRecovery() when NFC crashes - we accept a best effort
   // recovery
-  private static INfcAdapter sService;
   private static INxpWlcAdapter sNxpService;
 
   private NxpWlcAdapter() {}
@@ -70,16 +68,6 @@ public final class NxpWlcAdapter {
       sNfcAdapters.put(adapter, nxpAdapter);
     }
     return nxpAdapter;
-  }
-
-  /** get handle to NFC service interface */
-  private static INfcAdapter getServiceInterface() {
-    /* get a handle to NFC service */
-    IBinder b = ServiceManager.getService("nfc");
-    if (b == null) {
-      return null;
-    }
-    return INfcAdapter.Stub.asInterface(b);
   }
 
   /**
